@@ -41,13 +41,13 @@ def is_network_working(host_check='https://google.com'):
 
 
 RECHECK_TIME = 15
+PROCESS_LIST = ['msedge.exe', 'pycharm64.exe', 'python.exe']
 
 def main():
     try:
         while True:
-            process_list = ['msedge.exe', 'pycharm64.exe', 'python.exe']
             ip_local_check = "http://192.168.1.1"
-            services_information = get_service_info(process_list)
+            services_information = get_service_info(PROCESS_LIST)
 
             system_load_average = psutil.getloadavg()
 
