@@ -1,5 +1,5 @@
 import time
-from enum import Enum
+from enum import IntEnum
 
 import psutil
 from urllib import request
@@ -91,7 +91,7 @@ def wait_for_communication():
     return 2, "123456789"
 
 
-class Option(Enum):
+class Option(IntEnum):
     SEND_TO_DEVICE = 1
     SEND_TO_API = 2
     CHECK_INTERNET_CONNECTION = 3
@@ -102,7 +102,7 @@ def main():
         while True:
             option, device_eui = wait_for_communication()
 
-            if option == Option.SEND_TO_DEVICE or option == Option.SEND_TO_API:
+            if option == int(Option.SEND_TO_DEVICE) or option == int(Option.SEND_TO_API):
 
                 services_information = get_service_info(PROCESS_LIST)
                 system_load_average = psutil.getloadavg()[0] * 100
@@ -119,22 +119,24 @@ def main():
                         "lan": lan_access,
                         "eui": device_eui}
 
-                print("Services info:\n", services_information)
-                print("System load average: {}".format(system_load_average))
-                print("Disk usage: {}".format(disk_usage))
-                print("Memory usage: {}".format(memory_usage))
+                # print("Services info:\n", services_information)
+                # print("System load average: {}".format(system_load_average))
+                # print("Disk usage: {}".format(disk_usage))
+                # print("Memory usage: {}".format(memory_usage))
+                #
+                # print("WAN access: {}".format(("OK" if wan_access else "Not OK")))
+                # print("LAN access: {}".format(("OK" if lan_access else "Not OK")))
 
-                print("WAN access: {}".format(("OK" if wan_access else "Not OK")))
-                print("LAN access: {}".format(("OK" if lan_access else "Not OK")))
+                print(data)
 
-                if option == Option.SEND_TO_DEVICE:
+                if option == int(Option.SEND_TO_DEVICE):
                     print("No internet connection, transmitting info to device...")
                     send_data_to_device(data)
                 else:
                     print("Internet connection available, transmitting info to API...")
                     send_data_to_api(data)
 
-            elif option == Option.CHECK_INTERNET_CONNECTION:
+            elif option == int(Option.CHECK_INTERNET_CONNECTION):
                 print("Checking internet connection...")
 
                 wan_access = is_network_working()
