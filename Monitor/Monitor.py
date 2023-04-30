@@ -63,14 +63,18 @@ class Monitor:
         :param data: data to send to the API
         :return: True if the data was sent successfully, False otherwise
         """
-        url = 'http://localhost/monitor/data'
+        try:
+            url = 'http://localhost:5000/monitor/data'
 
-        response = requests.post(url, json=data)
+            response = requests.post(url, json=data)
 
-        if response.status_code == 200 and response.reason == 'OK':
-            return True
-        else:
-            print(f'Error al hacer la petición: {response.status_code} - {response.reason}')
+            if response.status_code == 200 and response.reason == 'OK':
+                return True
+            else:
+                print(f'Error al hacer la petición: {response.status_code} - {response.reason}')
+                return False
+        except Exception as e:
+            print(f'Error al hacer la petición: {e}')
             return False
 
     def get_service_info(self) -> dict:
@@ -92,10 +96,13 @@ class Monitor:
         :param data: data to send to FiPy device
         :return: True if the data was sent successfully, False otherwise
         """
-        # TODO: this method should be tried 3 times before giving up
-        raise NotImplementedError
+        self.serial.open()
+        self.serial.write(data.encode())
+        self.serial.close()
 
-    def wait_for_communication(self) -> (int, str):
+        return True
+
+    def wait_for_command(self) -> (int, str):
         """
         Waits until the program receives an instruction from the device and the eui
         :return: 1 if the device expects to retrieve data, 2 if data should be sent to the API,
@@ -113,19 +120,19 @@ class Monitor:
                 loop = False
 
         self.serial.close()
-        return command, eui
+        return int(command), eui
 
     def main(self):
         try:
             self.set_up_serial('COM5')
             while True:
-                command, device_eui = self.wait_for_communication()
+                command, device_eui = self.wait_for_command()
                 print(f"Option: {command} - EUI: {device_eui}")
                 if command is None or device_eui is None:
                     print("Not getting command nor eui, trying again...")
                     continue
                 if command == int(Option.SEND_TO_DEVICE) or command == int(Option.SEND_TO_API):
-
+                    print("Getting system information...")
                     services_information = self.get_service_info()
                     system_load_average = psutil.getloadavg()[0] * 100
                     disk_usage = psutil.disk_usage('/').percent
@@ -153,7 +160,7 @@ class Monitor:
 
                     if command == int(Option.SEND_TO_DEVICE):
                         print("No internet connection, transmitting info to device...")
-                        self.send_data_to_device(data)
+                        # self.send_data_to_device(data)
                     else:
                         print("Internet connection available, transmitting info to API...")
                         self.send_data_to_api(data)
@@ -164,7 +171,7 @@ class Monitor:
                     wan_access = self.is_network_working()
                     lan_access = self.is_network_working(self.ip_local_check)
 
-                    self.send_data_to_device((wan_access, lan_access))
+                    self.send_data_to_device(f"serverconnection!{wan_access}!{lan_access}")
 
         except KeyboardInterrupt:
             print("Exiting...")
