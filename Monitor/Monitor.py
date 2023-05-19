@@ -3,12 +3,13 @@ from enum import IntEnum
 import psutil
 from urllib import request
 import requests
-import binascii
+from datetime import datetime
 from serial import Serial
+from queue import Queue
 
 
 class Option(IntEnum):
-    SEND_TO_DEVICE = 1
+    BUFFER_DATA_UNTIL_INTERNET = 1
     SEND_TO_API = 2
     CHECK_INTERNET_CONNECTION = 3
 
@@ -20,6 +21,7 @@ class Monitor:
         self.service_list = service_list
         self.ip_local_check = ip_local_check
         self.serial = None
+        self.buffer = Queue()
 
     def set_up_serial(self, port, baudrate=115200, timeout=5):
         """
@@ -40,7 +42,15 @@ class Monitor:
                 return {
                     'name': proc.info['name'],
                     'cpu_percent': proc.info['cpu_percent']*100,
-                    'memory_rss': proc.info['memory_info'].rss,
+                    'memory_rss': proc.info['memory_info'].rss/1e+6,
+                    'status': True,
+                }
+            else:
+                return {
+                    'name': process_name,
+                    'cpu_percent': 0,
+                    'memory_rss': 0,
+                    'status': False,
                 }
 
     @staticmethod
@@ -90,17 +100,24 @@ class Monitor:
                 service_info[service] = process_info
         return service_info
 
-    def send_data_to_device(self, data) -> bool:
+    def send_data_to_device(self, data):
         """
         Sends the given data to the FiPy device using serial communication.
         :param data: data to send to FiPy device
         :return: True if the data was sent successfully, False otherwise
         """
         self.serial.open()
-        self.serial.write(data.encode())
+        self.serial.write(str(data).encode())
         self.serial.close()
 
-        return True
+    def buffer_data(self, data):
+        """
+        Stores the given data in a buffer, additionally it stores the datetime when the data is generated.
+        :param data:
+        :return:
+        """
+        data['datetime'] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        self.buffer.put(data)
 
     def wait_for_command(self) -> (int, str):
         """
@@ -124,14 +141,14 @@ class Monitor:
 
     def main(self):
         try:
-            self.set_up_serial('COM5')
+            self.set_up_serial('COM3')
             while True:
                 command, device_eui = self.wait_for_command()
                 print(f"Option: {command} - EUI: {device_eui}")
                 if command is None or device_eui is None:
                     print("Not getting command nor eui, trying again...")
                     continue
-                if command == int(Option.SEND_TO_DEVICE) or command == int(Option.SEND_TO_API):
+                if command == int(Option.BUFFER_DATA_UNTIL_INTERNET) or command == int(Option.SEND_TO_API):
                     print("Getting system information...")
                     services_information = self.get_service_info()
                     system_load_average = psutil.getloadavg()[0] * 100
@@ -148,22 +165,18 @@ class Monitor:
                             "lan": lan_access,
                             "eui": device_eui}
 
-                    # print("Services info:\n", services_information)
-                    # print("System load average: {}".format(system_load_average))
-                    # print("Disk usage: {}".format(disk_usage))
-                    # print("Memory usage: {}".format(memory_usage))
-                    #
-                    # print("WAN access: {}".format(("OK" if wan_access else "Not OK")))
-                    # print("LAN access: {}".format(("OK" if lan_access else "Not OK")))
-
                     print(data)
 
-                    if command == int(Option.SEND_TO_DEVICE):
+                    if command == int(Option.BUFFER_DATA_UNTIL_INTERNET):
                         print("No internet connection, transmitting info to device...")
-                        # self.send_data_to_device(data)
+                        self.buffer_data(data)
                     else:
                         print("Internet connection available, transmitting info to API...")
-                        self.send_data_to_api(data)
+                        self.process_buffer()
+                        if self.is_network_working():
+                            self.send_data_to_api(data)
+                        else:
+                            self.buffer_data(data)
 
                 elif command == int(Option.CHECK_INTERNET_CONNECTION):
                     print("Checking internet connection...")
@@ -175,6 +188,15 @@ class Monitor:
 
         except KeyboardInterrupt:
             print("Exiting...")
+
+    def process_buffer(self):
+        while len(self.buffer.queue) > 0 and self.is_network_working():
+            item = self.buffer.get()
+            try:
+                self.send_data_to_api(item)
+            except:
+                self.buffer.put(item)
+                break
 
 
 if __name__ == '__main__':
