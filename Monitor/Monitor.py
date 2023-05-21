@@ -16,9 +16,15 @@ class Option(IntEnum):
 
 class Monitor:
 
-    def __init__(self, sleep_time=30, service_list=None, ip_local_check="http://192.168.1.1"):
+    def __init__(self, sleep_time=30, service_list=None, core_services=None, ip_local_check="http://192.168.1.1"):
         self.sleep_time = sleep_time
         self.service_list = service_list
+        self.core_services = core_services
+
+        if self.core_services is not None and len(self.core_services) > 3:
+            print("The core services list is too long. It should be 3 or less. Discarding the rest.")
+            self.core_services = self.core_services[:3]
+
         self.ip_local_check = ip_local_check
         self.serial = None
         self.buffer = Queue()
@@ -41,8 +47,8 @@ class Monitor:
             if proc.info['name'] == process_name:
                 return {
                     'name': proc.info['name'],
-                    'cpu_percent': proc.info['cpu_percent']*100,
-                    'memory_rss': proc.info['memory_info'].rss/1e+6,
+                    'cpu_percent': proc.info['cpu_percent'] * 100,
+                    'memory_rss': proc.info['memory_info'].rss / 1e+6,
                     'status': True,
                 }
             else:
@@ -170,6 +176,7 @@ class Monitor:
                     if command == int(Option.BUFFER_DATA_UNTIL_INTERNET):
                         print("No internet connection, transmitting info to device...")
                         self.buffer_data(data)
+                        self.send_critical_data_to_device(data)
                     else:
                         print("Internet connection available, transmitting info to API...")
                         self.process_buffer()
@@ -198,7 +205,28 @@ class Monitor:
                 self.buffer.put(item)
                 break
 
+    def send_critical_data_to_device(self, data):
+        """
+        Sends the core data to the device using serial communication if any.
+        :param data:
+        :return:
+        """
+        response = ""
+        # Check if data has core services.
+        for core_service in self.core_services:
+            if core_service in data['services']:
+                service = data['services'][core_service]
+                name = service['name']
+                status = service['status']
+                response += f"criticalconfig!{name}!{status}!|"
+        if response != "":
+            response = response[:-1]
+        else:
+            response = "criticalconfig!none"
+        self.send_data_to_device(response)
+
 
 if __name__ == '__main__':
-    app = Monitor(sleep_time=30, service_list=['msedge.exe', 'pycharm64.exe', 'python.exe'])
+    app = Monitor(sleep_time=30,
+                  service_list=['msedge.exe', 'pycharm64.exe', 'python.exe'], core_services=['msedge.exe'])
     app.main()
