@@ -80,7 +80,7 @@ class Monitor:
         :return: True if the data was sent successfully, False otherwise
         """
         try:
-            url = 'http://localhost:5000/monitor/data'
+            url = 'http://localhost/monitor/data'
 
             response = requests.post(url, json=data)
 
