@@ -190,8 +190,6 @@ class Monitor:
 
                     wan_access = self.is_network_working()
                     lan_access = self.is_network_working(self.ip_local_check)
-                    # wan_access = False # For debugging
-                    # lan_access = False # For debugging
 
                     self.send_data_to_device(f"serverconnection!{wan_access}!{lan_access}")
 
