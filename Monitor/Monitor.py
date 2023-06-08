@@ -80,8 +80,8 @@ class Monitor:
         :return: True if the data was sent successfully, False otherwise
         """
         try:
-            url = 'http://localhost/monitor/data'
-
+            # url = 'http://localhost/monitor/data'
+            url = 'http://serversnitch.westeurope.cloudapp.azure.com/monitor/data'
             response = requests.post(url, json=data)
 
             if response.status_code == 200 and response.reason == 'OK':
@@ -136,6 +136,7 @@ class Monitor:
         command = eui = None
         while loop:
             message = self.serial.readline()
+            print(message)
             if b"configsnitch" in message:
                 message = message.decode("ascii")
                 command = message.split("!")[1]
@@ -172,7 +173,6 @@ class Monitor:
                             "eui": device_eui}
 
                     print(data)
-
                     if command == int(Option.BUFFER_DATA_UNTIL_INTERNET):
                         print("No internet connection, transmitting info to device...")
                         self.buffer_data(data)
@@ -190,6 +190,8 @@ class Monitor:
 
                     wan_access = self.is_network_working()
                     lan_access = self.is_network_working(self.ip_local_check)
+                    # wan_access = False # For debugging
+                    # lan_access = False # For debugging
 
                     self.send_data_to_device(f"serverconnection!{wan_access}!{lan_access}")
 
